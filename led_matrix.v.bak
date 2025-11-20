@@ -1,0 +1,155 @@
+// ============================================================================
+//  led_matrix_hello_onefile.v  —  8x8 LED matrix: H → E → L → L → O
+//  Rows: active-LOW one-hot; Cols: active-HIGH bitmap for current row
+//  Clock: 50 MHz (adjust CLK_HZ if yours differs)
+// ============================================================================
+
+module Lab4 (
+    input  wire        clk50,     // 50 MHz board clock
+    input  wire        reset_n,   // async active-low reset
+    input  wire        run,       // when 1, step frames
+    output reg  [7:0]  row_n,     // active-LOW row enables
+    output reg  [7:0]  col        // active-HIGH column bits
+);
+    // --------- User-tweakable rates -----------------------------------------
+    localparam integer CLK_HZ    = 50_000_000;
+    localparam integer ROW_HZ    = 2000;   // per-row scan rate (≥1 kHz avoids flicker)
+    localparam integer FRAME_HZ  = 4;      // frames per second (H→E→L→L→O)
+
+    localparam integer ROW_DIV   = CLK_HZ / ROW_HZ;
+    localparam integer FRAME_DIV = CLK_HZ / FRAME_HZ;
+
+    // --------- Row scanner ---------------------------------------------------
+    reg [$clog2(ROW_DIV)-1:0] row_div_cnt = 0;
+    reg [2:0]                 row_idx     = 3'd0;
+
+    wire [7:0] row_onehot_n = ~(8'b0000_0001 << row_idx); // active-LOW
+
+    always @(posedge clk50 or negedge reset_n) begin
+        if (!reset_n) begin
+            row_div_cnt <= 0;
+            row_idx     <= 0;
+        end else if (row_div_cnt == ROW_DIV-1) begin
+            row_div_cnt <= 0;
+            row_idx     <= row_idx + 3'd1;
+        end else begin
+            row_div_cnt <= row_div_cnt + 1'b1;
+        end
+    end
+
+    // --------- Frame counter -------------------------------------------------
+    localparam integer N_FRAMES = 5;  // H, E, L, L, O
+    reg [$clog2(FRAME_DIV)-1:0] frame_div_cnt = 0;
+    reg [$clog2(N_FRAMES)-1:0]  frame_idx     = 0;
+
+    always @(posedge clk50 or negedge reset_n) begin
+        if (!reset_n) begin
+            frame_div_cnt <= 0;
+            frame_idx     <= 0;
+        end else if (run) begin
+            if (frame_div_cnt == FRAME_DIV-1) begin
+                frame_div_cnt <= 0;
+                frame_idx     <= (frame_idx == N_FRAMES-1) ? 0 : frame_idx + 1'b1;
+            end else begin
+                frame_div_cnt <= frame_div_cnt + 1'b1;
+            end
+        end else begin
+            frame_div_cnt <= 0; // pause on current frame
+        end
+    end
+
+    // --------- ROM: 5 frames × 8 rows (active-HIGH columns) -----------------
+    wire [7:0] cols_for_row;
+    hello_rom_8x8 rom_i (
+        .frame_idx (frame_idx),
+        .row_idx   (row_idx),
+        .cols      (cols_for_row)
+    );
+
+    // --------- Drive outputs -------------------------------------------------
+    always @(posedge clk50 or negedge reset_n) begin
+        if (!reset_n) begin
+            row_n <= 8'hFF;
+            col   <= 8'h00;
+        end else begin
+            row_n <= row_onehot_n;
+            col   <= cols_for_row;
+        end
+    end
+endmodule
+
+
+// ============================================================================
+//  HELLO ROM (8×8 glyphs). Rows: top→bottom (0..7). cols[7] = leftmost.
+//  If your panel is mirrored, swap bit order: cols <= {cols[0],...,cols[7]}.
+// ============================================================================
+
+module hello_rom_8x8 (
+    input  wire [2:0] frame_idx,  // 0..4
+    input  wire [2:0] row_idx,    // 0..7
+    output reg  [7:0] cols        // active-HIGH columns for this row
+);
+    // Glyph helpers (simple block letters)
+    function automatic [7:0] G_H (input [2:0] r);
+        case (r)
+            3'd0: G_H = 8'b1000_0001;
+            3'd1: G_H = 8'b1000_0001;
+            3'd2: G_H = 8'b1111_1111;
+            3'd3: G_H = 8'b1111_1111;
+            3'd4: G_H = 8'b1000_0001;
+            3'd5: G_H = 8'b1000_0001;
+            3'd6: G_H = 8'b1000_0001;
+            3'd7: G_H = 8'b0000_0000;
+        endcase
+    endfunction
+
+    function automatic [7:0] G_E (input [2:0] r);
+        case (r)
+            3'd0: G_E = 8'b1111_1111;
+            3'd1: G_E = 8'b1000_0000;
+            3'd2: G_E = 8'b1111_1100;
+            3'd3: G_E = 8'b1111_1100;
+            3'd4: G_E = 8'b1000_0000;
+            3'd5: G_E = 8'b1111_1111;
+            3'd6: G_E = 8'b1111_1111;
+            3'd7: G_E = 8'b0000_0000;
+        endcase
+    endfunction
+
+    function automatic [7:0] G_L (input [2:0] r);
+        case (r)
+            3'd0: G_L = 8'b1000_0000;
+            3'd1: G_L = 8'b1000_0000;
+            3'd2: G_L = 8'b1000_0000;
+            3'd3: G_L = 8'b1000_0000;
+            3'd4: G_L = 8'b1000_0000;
+            3'd5: G_L = 8'b1111_1111;
+            3'd6: G_L = 8'b1111_1111;
+            3'd7: G_L = 8'b0000_0000;
+        endcase
+    endfunction
+
+    function automatic [7:0] G_O (input [2:0] r);
+        case (r)
+            3'd0: G_O = 8'b0111_1110;
+            3'd1: G_O = 8'b1000_0001;
+            3'd2: G_O = 8'b1000_0001;
+            3'd3: G_O = 8'b1000_0001;
+            3'd4: G_O = 8'b1000_0001;
+            3'd5: G_O = 8'b1000_0001;
+            3'd6: G_O = 8'b0111_1110;
+            3'd7: G_O = 8'b0000_0000;
+        endcase
+    endfunction
+
+    always @* begin
+        case (frame_idx)
+            3'd0: cols = G_H(row_idx);
+            3'd1: cols = G_E(row_idx);
+            3'd2: cols = G_L(row_idx);
+            3'd3: cols = G_L(row_idx);
+            3'd4: cols = G_O(row_idx);
+            default: cols = 8'h00;
+        endcase
+    end
+endmodule
