@@ -78,11 +78,16 @@ Feel free to rename folders, but keeping Cadence artifacts separate from RTL/FPG
 
   * A2 is decoded first, generating enables for the upper and lower halves.
   * A1 is decoded within each half.
-  * A0 is decoded for each of the 4 quarters, yielding eight one-hot outputs D0..D7. 
+  * A0 is decoded for each of the 4 quarters, yielding eight one-hot outputs D0..D7.
+  <img width="1196" height="931" alt="Screenshot 2025-10-29 155226" src="https://github.com/user-attachments/assets/80ce3821-bfb8-4775-9dda-de2369d21a0f" />
+
 
 This structure highlights re-use and modular design: a single well-verified 1→2 block is instantiated multiple times to build larger decoders.
 
 ### 2. ROM Word Slices (“HELLO”)
+
+<img width="1704" height="981" alt="Screenshot 2025-10-29 155152" src="https://github.com/user-attachments/assets/d20329ff-e4c9-4d52-8702-8b8055957ca4" />
+
 
 * The ROM is **7×N** (7 bits per word, N ≥ 5 words). Each word corresponds to one ASCII character:
 
@@ -96,6 +101,9 @@ This structure highlights re-use and modular design: a single well-verified 1→
   * A transmission gate (or tri-state device) per bit, enabled by the word’s select `SEL` and its complement `~SEL`, to connect the word onto the bus. 
 
 When the decoder asserts `Dk`, only word `k` drives the 7-bit bus; all other words are effectively high-impedance, so the bus behaves like a simple ROM output.
+<img width="1112" height="814" alt="Screenshot 2025-10-29 155132" src="https://github.com/user-attachments/assets/ac291513-4328-421a-8ed1-cdc7f2d9bef7" />
+
+
 
 ### 3. Transistor-Level Testbench
 
@@ -116,6 +124,7 @@ To verify the decoder + ROM:
   * `011` → L
   * `100` → O
   * `101`, `110`, `111` → high-Z / unused words
+<img width="900" height="461" alt="image" src="https://github.com/user-attachments/assets/af2e24ac-5179-44f3-bf17-5b6a5fb950e9" />
 
 ---
 
@@ -245,9 +254,16 @@ This approach ensures only one row is active at any time, and the human eye inte
 
    * Set `run` high and release `reset_n`.
    * The letters H → E → L → L → O should appear one by one on the 8×8 matrix at about **0.5 Hz**.
-   * Row scanning should be flicker-free thanks to the ~1.95 kHz row refresh. 
+   * Row scanning should be flicker-free thanks to the ~1.95 kHz row refresh.
+   
+
+https://github.com/user-attachments/assets/adc26b08-460d-4d36-9979-aeacf5e7e3d4
+
+
 
 ---
+
+
 
 ## Working With Cadence (Decoder + ROM)
 
